@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+  <title>IOT Assignment</title>
+  <link rel="shortcut icon" href="../static/images/favicon.ico">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+  <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+  <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+  <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+
+
+  <script src="https://kit.fontawesome.com/a186d658a7.js" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="../static/css/styles.css">
+
+  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+  <script type="text/javascript">
+    google.charts.load('current', { 'packages': ['corechart', 'table'] });
+    google.charts.setOnLoadCallback(googlecharts_is_ready);
+
+    var chart, table;
+    var graphdata;
+    var speedtabledata;
+    function googlecharts_is_ready() {
+    }
+
+    //____________________________________________________________________________________________________________
+
+    function getNewData() {
+
+      jQuery.ajax({
+        url: "/api/getdata",
+        type: 'POST',
+        success: function (ndata, textStatus, xhr) {
+          // chartdata = ndata.chart_data.data //data for bookingids'
+          // chartdatalength = parseInt(ndata.chart_data_length)
+          chartdata = ndata.chart_data;
+          chartdatalength = chartdata.length;
+          console.log(chartdata)
+          //Put all the bookingids into one array
+          var bookingids = [chartdata[0].bookingid]
+          var numberOfBookingids = 1; // currently one as the first bookingid has already been inserted
+
+          //loop through chart data for individual bookingids
+          for (i in chartdata) {
+            var checker = true;
+            //loop to check whether the bookingid has already been inserted
+            for (j in bookingids) {
+              if (bookingids[j] == chartdata[i].bookingid) {
+                checker = false;
+                break;
+              }
+            }
+
+            if (checker == true) {
+              bookingids.push(chartdata[i].bookingid)
+              numberOfBookingids++
+            }
+
+            if (numberOfBookingids == 3) {
+              break;
+            }
+          }
+
+          graphdata1 = createDataTableForChart(chartdata, chartdatalength, bookingids, 0)
+          speedtabledata1 = createDataTableForTableSpeed(chartdata, chartdatalength, bookingids, 0)
+          accelerationtabledata1 = createDataTableForTableAcceleration(chartdata, chartdatalength, bookingids, 0)
+
+          graphdata2 = createDataTableForChart(chartdata, chartdatalength, bookingids, 1)
+          speedtabledata2 = createDataTableForTableSpeed(chartdata, chartdatalength, bookingids, 1)
+          accelerationtabledata2 = createDataTableForTableAcceleration(chartdata, chartdatalength, bookingids, 1)
+
+          graphdata3 = createDataTableForChart(chartdata, chartdatalength, bookingids, 2)
+          speedtabledata3 = createDataTableForTableSpeed(chartdata, chartdatalength, bookingids, 2)
+          accelerationtabledata3 = createDataTableForTableAcceleration(chartdata, chartdatalength, bookingids, 2)
+
+          drawLineChart(graphdata1, "chart_div1")
+          drawDataTable(speedtabledata1, "table_div1")
+          drawDataTable(accelerationtabledata1, "table_div_right1")
+
+          drawLineChart(graphdata2, "chart_div2")
+          drawDataTable(speedtabledata2, "table_div2")
+          drawDataTable(accelerationtabledata2, "table_div_right2")
+
+          drawLineChart(graphdata3, "chart_div3")
+          drawDataTable(speedtabledata3, "table_div3")
+          drawDataTable(accelerationtabledata3, "table_div_right3")
+
+          returnBookingids(bookingids)
+
+          getAverageSpeed(chartdata, bookingids, 0)
+          getAverageSpeed(chartdata, bookingids, 1)
+          getAverageSpeed(chartdata, bookingids, 2)
+
+          getMaxSpeed(chartdata, bookingids, 0)
+          getMaxSpeed(chartdata, bookingids, 1)
+          getMaxSpeed(chartdata, bookingids, 2)
+
+          getButtonStatus1(chartdata, bookingids, 0)
+          getButtonStatus2(chartdata, bookingids, 1)
+          getButtonStatus3(chartdata, bookingids, 2)
+
+
+
+        }//end success
+      });//end ajax
+    } //end getNewData
+
+    //____________________________________________________________________________________________________________
+
+    function createDataTableForTableSpeed(newdata, newdatalength, bookingids, number) {
+      var bookingid = bookingids[number];
+
+      tabledata = new google.visualization.DataTable();
+
+      tabledata.addColumn('string', 'Time');
+      tabledata.addColumn('string', 'Elapsed');
+      tabledata.addColumn('number', 'Speed (km/hour)');
+      oldspeed = 0
+      currentrow = 0
+
+      for (i in newdata) {
+        if (newdata[i].bookingid == bookingid) {
+
+          speed = parseFloat(newdata[i].speedkmhour)
+          seconds = parseInt(newdata[i].seconds)
+          minutes = Math.floor(seconds / 60)
+          seconds_str = minutes + " minutes " + (seconds - (minutes * 60)) + " seconds"
+          datetime = newdata[i].datetime_value;
+          jsdatetime = new Date(Date.parse(datetime));
+
+          jstime = jsdatetime.toLocaleTimeString();
+          tabledata.addRows([[jstime, seconds_str, speed]]);
+          currentrow++
+        }
+      }
+      tabledata.removeRows(0, currentrow - 10)
+
+      return tabledata
+    }
+
+    //____________________________________________________________________________________________________________
+
+    function createDataTableForTableAcceleration(newdata, newdatalength, bookingids, number) {
+      var bookingid = bookingids[number];
+      tabledata = new google.visualization.DataTable();
+
+      tabledata.addColumn('string', 'Time');
+      tabledata.addColumn('string', 'Elapsed');
+      tabledata.addColumn('number', 'Acceleration (m/s2)');
+
+      currentrow = 0
+
+      for (i in newdata) {
+        if (newdata[i].bookingid == bookingid) {
+
+          speedkmhr = parseFloat(newdata[i].speedkmhour)
+          speedms = (speedkmhr / 3.6)
+
+          seconds = parseInt(newdata[i].seconds)
+          minutes = Math.floor(seconds / 60)
+          seconds_str = minutes + " minutes " + (seconds - (minutes * 60)) + " seconds"
+          datetime = newdata[i].datetime_value;
+
+          acceleration = ((speedms - oldspeed) / (seconds - (minutes * 60)));
+
+          jsdatetime = new Date(Date.parse(datetime));
+
+          jstime = jsdatetime.toLocaleTimeString();
+          tabledata.addRows([[jstime, seconds_str, acceleration]]);
+          oldspeed = speedms
+          currentrow++
+
+        }
+      }
+
+      tabledata.removeRows(0, currentrow - 10)
+
+      return tabledata
+    }
+
+    //____________________________________________________________________________________________________________
+
+    function createDataTableForChart(newdata, newdatalength, bookingids, number) {
+      var bookingid = bookingids[number];
+      graphdata = new google.visualization.DataTable();
+
+      graphdata.addColumn('string', 'Time');
+      graphdata.addColumn('number', 'Speed');
+
+      currentrow = 0
+
+      for (i in newdata) {
+        if (newdata[i].bookingid == bookingid) {
+          speed = parseFloat(newdata[i].speedkmhour)
+          datetime = newdata[i].datetime_value;
+          jsdatetime = new Date(Date.parse(datetime));
+
+          jstime = jsdatetime.toLocaleTimeString();
+          graphdata.addRows([[jstime, speed]]);
+          currentrow++
+        }
+      }
+
+      graphdata.removeRows(0, currentrow - 10)
+
+      return graphdata
+    }
+
+    //____________________________________________________________________________________________________________
+    function drawDataTable(tabledata, divname) {
+      table = new google.visualization.Table(document.getElementById(divname));
+      table.draw(tabledata, { showRowNumber: true, width: '100%', height: '100%' });
+
+    }//end drawTable
+    //____________________________________________________________________________________________________________
+
+    function drawLineChart(graphdata, divname) {
+      chart = new google.visualization.LineChart(document.getElementById(divname));
+      var options = {
+        interpolateNulls: true,
+        pointSize: 5,
+        curveType: 'function',
+        legend: 'bottom',
+        vAxis: { baseline: 0, viewWindow: { min: 0, max: 120 } },
+        hAxis: { format: 'hh:mm:ss' }
+      }
+      chart.draw(graphdata, options);
+      return
+    } //end drawChart
+    //____________________________________________________________________________________________________________
+
+    $(document).ready(function () {
+
+      setInterval(function () {
+        getNewData()
+      }, 1000);
+    });
+    //____________________________________________________________________________________________________________
+
+    function returnBookingids(bookingids) {
+      bookingid = bookingids[0];
+      document.getElementById("bookingid1").innerHTML = bookingid.toString();
+      bookingid = bookingids[1];
+      document.getElementById("bookingid2").innerHTML = bookingid.toString();
+      bookingid = bookingids[2];
+      document.getElementById("bookingid3").innerHTML = bookingid.toString();
+
+
+    }
+    //____________________________________________________________________________________________________________
+
+    function getAverageSpeed(newdata, bookingids, number) {
+      var bookingid = bookingids[number];
+      var sum = 0.0;
+      var counter = 0;
+      var average = 0.0;
+      for (i in newdata) {
+        if (newdata[i].bookingid == bookingid) {
+          sum = sum + parseFloat(newdata[i].speedkmhour);
+          counter++;
+        }
+      }
+      average = sum / counter
+      number = number + 1
+      var str = "averageSpeed" + number
+      document.getElementById(str).innerHTML = average.toFixed(3).toString().concat(" km/hour");
+    }
+
+
+    //____________________________________________________________________________________________________________
+    function getMaxSpeed(newdata, bookingids, number) {
+      var bookingid = bookingids[number];
+      var max = 0.0;
+      var currentValue = 0;
+
+      for (i in newdata) {
+        if (newdata[i].bookingid == bookingid) {
+          currentValue = parseFloat(newdata[i].speedkmhour);
+          if (currentValue > max)
+            max = currentValue;
+        }
+      }
+      number = number + 1
+      var str = "maxSpeed" + number
+      document.getElementById(str).innerHTML = max.toFixed(3).toString().concat(" km/hour");
+    }
+
+
+    //____________________________________________________________________________________________________________
+    function getButtonStatus1(newdata, bookingids, number) {
+      var chartdatalength2 = parseInt(newdata.length)
+      var dataSpeed = newdata[chartdatalength2 - 1].speedkmhour;
+      var dataBookingID = newdata[chartdatalength2 - 1].bookingid;
+      if (dataBookingID == bookingids[number]) {
+        if (dataSpeed > 80) {
+          var onString = "Buzzer Status:On (Message has been sent to slow down!)";
+          var buzzerStr = "buzzerStatus1"
+          document.getElementById(buzzerStr).innerHTML = onString.toString();
+        }
+        else {
+          var offString = "Buzzer Status:Off";
+          var buzzerStr = "buzzerStatus1";
+          document.getElementById(buzzerStr).innerHTML = offString.toString();
+        }
+      }
+    }
+
+    function getButtonStatus2(newdata, bookingids, number) {
+      var chartdatalength2 = parseInt(newdata.length)
+      var dataSpeed = newdata[chartdatalength2 - 1].speedkmhour;
+      var dataBookingID = newdata[chartdatalength2 - 1].bookingid;
+      if (dataBookingID == bookingids[number]) {
+        if (dataSpeed > 80) {
+          var onString = "Buzzer Status:On (Message has been sent to slow down!)";
+          var buzzerStr = "buzzerStatus2"
+          document.getElementById(buzzerStr).innerHTML = onString.toString();
+        }
+        else {
+          var offString = "Buzzer Status:Off";
+          var buzzerStr = "buzzerStatus2";
+          document.getElementById(buzzerStr).innerHTML = offString.toString();
+        }
+      }
+    }
+
+    function getButtonStatus3(newdata, bookingids, number) {
+      var chartdatalength2 = parseInt(newdata.length)
+      var dataSpeed = newdata[chartdatalength2 - 1].speedkmhour;
+      var dataBookingID = newdata[chartdatalength2 - 1].bookingid;
+      if (dataBookingID == bookingids[number]) {
+        if (dataSpeed > 80) {
+          var onString = "Buzzer Status:On (Message has been sent to slow down!)";
+          var buzzerStr = "buzzerStatus3";
+          document.getElementById(buzzerStr).innerHTML = onString.toString();
+        }
+        else {
+          var offString = "Buzzer Status:Off";
+          var buzzerStr = "buzzerStatus3";
+          document.getElementById(buzzerStr).innerHTML = offString.toString();
+        }
+
+      }
+    }
+
+    //____________________________________________________________________________________________________________
+    $(function () {
+      $("#tabs").tabs();
+    });
+  </script>
+
+  <!-- ____________________________________________________________________________________________________________ -->
+</head>
+
+<body>
+
+  <nav class="navbar navbar-inverse">
+    <div class="container-fluid">
+      <div class="navbar-header">
+        <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#myNavbar">
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </button>
+        <a class="navbar-brand" href="#"><img src="../static/images/logo.png"></a>
+      </div>
+      <div class="collapse navbar-collapse" id="myNavbar">
+        <ul class="nav navbar-nav">
+          <li class="active"><a href="#">Home</a></li>
+          <li class="dropdown">
+        </ul>
+      </div>
+    </div>
+  </nav>
+  <!-- ____________________________________________________________________________________________________________ -->
+  <!-- Start of tabs -->
+  <div id="tabs">
+    Choose a Booking ID:
+    <ul>
+      <li><a href="#tabs1" id="bookingid1">BookingID1</a></li>
+      <li><a href="#tabs2" id="bookingid2">BookingID2</a></li>
+      <li><a href="#tabs3" id="bookingid3">BookingID3</a></li>
+    </ul>
+
+    <div id="tabs1">
+      <div class="container-fluid text-center">
+
+        <div class="row">
+          <div class="font-weight-bold text-primary text-uppercase mb-1" id="buzzerStatus1">Buzzer Status:Off</div>
+          <!-- ____________________________________________________________________________________________________________ -->
+          <!-- Earnings (Monthly) Card Example -->
+          <div class="col-sm-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+              <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                  <div class="col mr-2">
+                    <div class="font-weight-bold text-primary text-uppercase mb-1">No of vehicles tracked</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800">3</div>
+                  </div>
+                  <div class="col-auto">
+                    <i class="fas fa-car fa-3x blue text-gray-300"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- ____________________________________________________________________________________________________________ -->
+
+          <div class="col-sm-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+              <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                  <div class="col mr-2">
+                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Average Speed</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800" id="averageSpeed1">50</div>
+                  </div>
+                  <div class="col-auto">
+                    <i class="fas fa-tachometer-alt orange fa-3x text-gray-300"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ____________________________________________________________________________________________________________ -->
+
+
+          <div class="col-sm-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+              <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                  <div class="col mr-2">
+                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Maximum Speed</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800" id="maxSpeed1">120 km/h</div>
+                  </div>
+                  <div class="col-auto">
+                    <i class="fas fa-tachometer-alt red fa-3x text-gray-300"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- ____________________________________________________________________________________________________________ -->
+
+
+
+          <div class="col-sm-12 text-left">
+            <!-- card START -->
+            <div class="card shadow mb-4">
+              <!-- card-header START -->
+              <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">Speed</h6>
+              </div>
+              <!-- card-header END -->
+
+              <!-- card-body START -->
+              <div class="card-body">
+                <div class="chart-area">
+                  <div id="status"></div>
+                  <div id="chart_div1"></div>
+                </div>
+              </div>
+              <!-- card-body END-->
+            </div>
+            <!-- card END -->
+          </div>
+        </div>
+        <!-- ____________________________________________________________________________________________________________ -->
+
+        <div class="col-sm-6 text-left">
+          <!-- card START -->
+          <!-- <form action = "http://localhost:80/api/getdata" action method="get">
+      Booking ID<input id="bookingid"><button id="btn">Get this bookingid</button> 
+      </form> -->
+          <div class="card shadow mb-4">
+
+            <!-- card-header START -->
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+              <h6 class="m-0 font-weight-bold text-primary">Speed Table</h6>
+              <!-- <h6 class="m-0 font-weight-bold text-primary">Speed Table</h6>               -->
+            </div>
+            <!-- card-header END -->
+
+            <!-- card-body START -->
+            <div class="card-body">
+              <div class="chart-area">
+                <div id="table_div1"></div>
+              </div>
+            </div>
+            <!-- card-body END-->
+          </div>
+          <!-- card END -->
+        </div>
+        <!-- ____________________________________________________________________________________________________________ -->
+
+        <div class="col-sm-6 text-left">
+          <!-- card START -->
+          <div class="card shadow mb-4">
+            <!-- card-header START -->
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+              <h6 class="m-0 font-weight-bold text-primary">Acceleration</h6>
+            </div>
+            <!-- card-header END -->
+
+            <!-- card-body START -->
+            <div class="card-body">
+              <div class="chart-area">
+                <div id="table_div_right1"></div>
+              </div>
+            </div>
+            <!-- card-body END-->
+          </div>
+          <!-- card END -->
+        </div>
+      </div>
+      <!-- ____________________________________________________________________________________________________________ -->
+
+      <p>&nbsp;</p>
+
+    </div> <!-- row END -->
+
+
+    <div id="tabs2">
+      <div class="container-fluid text-center">
+
+        <div class="row">
+          <div class="font-weight-bold text-primary text-uppercase mb-1" id="buzzerStatus2">Buzzer Status:Off</div>
+          <!-- ____________________________________________________________________________________________________________ -->
+          <!-- Earnings (Monthly) Card Example -->
+          <div class="col-sm-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+              <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                  <div class="col mr-2">
+                    <div class="font-weight-bold text-primary text-uppercase mb-1">No of vehicles tracked</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800">3</div>
+                  </div>
+                  <div class="col-auto">
+                    <i class="fas fa-car fa-3x blue text-gray-300"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- ____________________________________________________________________________________________________________ -->
+
+          <div class="col-sm-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+              <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                  <div class="col mr-2">
+                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Average Speed</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800" id="averageSpeed2">50</div>
+                  </div>
+                  <div class="col-auto">
+                    <i class="fas fa-tachometer-alt orange fa-3x text-gray-300"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ____________________________________________________________________________________________________________ -->
+
+
+          <div class="col-sm-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+              <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                  <div class="col mr-2">
+                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Maximum Speed</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800" id="maxSpeed2">120 km/h</div>
+                  </div>
+                  <div class="col-auto">
+                    <i class="fas fa-tachometer-alt red fa-3x text-gray-300"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- ____________________________________________________________________________________________________________ -->
+
+
+
+          <div class="col-sm-12 text-left">
+            <!-- card START -->
+            <div class="card shadow mb-4">
+              <!-- card-header START -->
+              <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">Speed</h6>
+              </div>
+              <!-- card-header END -->
+
+              <!-- card-body START -->
+              <div class="card-body">
+                <div class="chart-area">
+                  <div id="status"></div>
+                  <div id="chart_div2"></div>
+                </div>
+              </div>
+              <!-- card-body END-->
+            </div>
+            <!-- card END -->
+          </div>
+        </div>
+        <!-- ____________________________________________________________________________________________________________ -->
+
+        <div class="col-sm-6 text-left">
+          <!-- card START -->
+          <!-- <form action = "http://localhost:80/api/getdata" action method="get">
+          Booking ID<input id="bookingid"><button id="btn">Get this bookingid</button> 
+          </form> -->
+          <div class="card shadow mb-4">
+
+            <!-- card-header START -->
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+              <h6 class="m-0 font-weight-bold text-primary">Speed Table</h6>
+              <!-- <h6 class="m-0 font-weight-bold text-primary">Speed Table</h6>               -->
+            </div>
+            <!-- card-header END -->
+
+            <!-- card-body START -->
+            <div class="card-body">
+              <div class="chart-area">
+                <div id="table_div2"></div>
+              </div>
+            </div>
+            <!-- card-body END-->
+          </div>
+          <!-- card END -->
+        </div>
+        <!-- ____________________________________________________________________________________________________________ -->
+
+        <div class="col-sm-6 text-left">
+          <!-- card START -->
+          <div class="card shadow mb-4">
+            <!-- card-header START -->
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+              <h6 class="m-0 font-weight-bold text-primary">Acceleration</h6>
+            </div>
+            <!-- card-header END -->
+
+            <!-- card-body START -->
+            <div class="card-body">
+              <div class="chart-area">
+                <div id="table_div_right2"></div>
+              </div>
+            </div>
+            <!-- card-body END-->
+          </div>
+          <!-- card END -->
+        </div>
+      </div>
+      <!-- ____________________________________________________________________________________________________________ -->
+
+      <p>&nbsp;</p>
+
+    </div> <!-- row END -->
+
+
+    <div id="tabs3">
+      <div class="container-fluid text-center">
+
+        <div class="row">
+          <div class="font-weight-bold text-primary text-uppercase mb-1" id="buzzerStatus3">Buzzer Status:Off</div>
+          <!-- ____________________________________________________________________________________________________________ -->
+          <!-- Earnings (Monthly) Card Example -->
+          <div class="col-sm-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+              <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                  <div class="col mr-2">
+                    <div class="font-weight-bold text-primary text-uppercase mb-1">No of vehicles tracked</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800">3</div>
+                  </div>
+                  <div class="col-auto">
+                    <i class="fas fa-car fa-3x blue text-gray-300"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- ____________________________________________________________________________________________________________ -->
+
+          <div class="col-sm-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+              <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                  <div class="col mr-2">
+                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Average Speed</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800" id="averageSpeed3">50</div>
+                  </div>
+                  <div class="col-auto">
+                    <i class="fas fa-tachometer-alt orange fa-3x text-gray-300"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ____________________________________________________________________________________________________________ -->
+
+
+          <div class="col-sm-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+              <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                  <div class="col mr-2">
+                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Maximum Speed</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800" id="maxSpeed3">120 km/h</div>
+                  </div>
+                  <div class="col-auto">
+                    <i class="fas fa-tachometer-alt red fa-3x text-gray-300"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- ____________________________________________________________________________________________________________ -->
+
+
+
+          <div class="col-sm-12 text-left">
+            <!-- card START -->
+            <div class="card shadow mb-4">
+              <!-- card-header START -->
+              <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">Speed</h6>
+              </div>
+              <!-- card-header END -->
+
+              <!-- card-body START -->
+              <div class="card-body">
+                <div class="chart-area">
+                  <div id="status"></div>
+                  <div id="chart_div3"></div>
+                </div>
+              </div>
+              <!-- card-body END-->
+            </div>
+            <!-- card END -->
+          </div>
+        </div>
+        <!-- ____________________________________________________________________________________________________________ -->
+
+        <div class="col-sm-6 text-left">
+          <!-- card START -->
+          <!-- <form action = "http://localhost:80/api/getdata" action method="get">
+          Booking ID<input id="bookingid"><button id="btn">Get this bookingid</button> 
+          </form> -->
+          <div class="card shadow mb-4">
+
+            <!-- card-header START -->
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+              <h6 class="m-0 font-weight-bold text-primary">Speed Table</h6>
+              <!-- <h6 class="m-0 font-weight-bold text-primary">Speed Table</h6>               -->
+            </div>
+            <!-- card-header END -->
+
+            <!-- card-body START -->
+            <div class="card-body">
+              <div class="chart-area">
+                <div id="table_div3"></div>
+              </div>
+            </div>
+            <!-- card-body END-->
+          </div>
+          <!-- card END -->
+        </div>
+        <!-- ____________________________________________________________________________________________________________ -->
+
+        <div class="col-sm-6 text-left">
+          <!-- card START -->
+          <div class="card shadow mb-4">
+            <!-- card-header START -->
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+              <h6 class="m-0 font-weight-bold text-primary">Acceleration</h6>
+            </div>
+            <!-- card-header END -->
+
+            <!-- card-body START -->
+            <div class="card-body">
+              <div class="chart-area">
+                <div id="table_div_right3"></div>
+              </div>
+            </div>
+            <!-- card-body END-->
+          </div>
+          <!-- card END -->
+        </div>
+      </div>
+      <!-- ____________________________________________________________________________________________________________ -->
+
+      <p>&nbsp;</p>
+
+    </div> <!-- row END -->
+  </div>
+
+  <footer class="container-fluid text-center">ST0324 IOT Assignment &copy; Kelly Loh Yang Jun</footer>
+
+</body>
+
+</html>
